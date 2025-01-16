@@ -59,6 +59,8 @@ pub trait Chunk {
 /// management operations.
 #[tarpc::service]
 pub trait ChunkMaster {
+	/// Communication from Chunk to Master
+	///
 	/// Registers a new chunk server and returns its ID.
 	///
 	/// # Parameters

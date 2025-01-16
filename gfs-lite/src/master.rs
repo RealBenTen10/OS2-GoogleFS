@@ -10,6 +10,7 @@ use std::{
 };
 
 use tarpc::context::Context;
+use std::collections::HashMap;
 
 use crate::{ChunkMaster, Master};
 
@@ -23,7 +24,7 @@ pub struct GfsMaster(Arc<RwLock<Inner>>);
 #[derive(Default)]
 struct Inner {
 	chunk_servers: Vec<SocketAddr>,          // List of registered chunk servers
-	url_to_chunk: std::collections::HashMap<String, SocketAddr>, // URL -> Chunk mapping
+	url_to_chunk: HashMap<String, SocketAddr>, // URL -> Chunk mapping
 }
 
 /// Implementation of the `Master` trait for `GfsMaster`.
@@ -62,7 +63,7 @@ impl ChunkMaster for GfsMaster {
 	}
 
 	async fn remove(self, _: Context, url: String) {
-		// remove(d) data (url) from chunk server
+		// removed data (url) from chunk server
 		// data (url) no longer available (if we didn't replicate or all replications deleted)
 		let mut inner = self.0.write().unwrap();
 		inner.url_to_chunk.remove(&url);

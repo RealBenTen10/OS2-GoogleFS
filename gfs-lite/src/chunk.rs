@@ -4,23 +4,21 @@
 
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
-
 use tarpc::context::Context;
-
 use crate::{Chunk, ChunkMasterClient};
 
 /// `ChunkServer` is responsible for handling chunk operations and interacting
 /// with the `ChunkMaster`.
 #[derive(Clone)]
-pub struct ChunkServer(Arc<RwLock<Inner>>);
+pub struct ChunkServer(pub Arc<RwLock<Inner>>);
 
 /// `Inner` holds the state of the `ChunkServer`, including a reference to the
 /// `ChunkMasterClient`, a hashmap for chunk storage, and the server's own ID.
 
-struct Inner {
-	chunks: HashMap<String, String>,          // URL -> Chunk data
-	my_id: u64,                               // Server's unique ID - position in array/vector
-	master_client: ChunkMasterClient,         // Client to communicate with the master
+pub struct Inner {
+	pub chunks: HashMap<String, String>,          // URL -> Chunk data
+	pub my_id: u64,                               // Server's unique ID - position in array/vector
+	pub master_client: ChunkMasterClient,         // Client to communicate with the master
 }
 
 impl ChunkServer {

@@ -24,38 +24,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// Create the GFS master server instance
 	let gfs_master = GfsMaster::default();
 
-	// Listen for client requests on port
-	let client_listener = TcpListener::bind("127.0.0.1:5000").await.expect("Could not bind client");
-	println!("Client service running on 127.0.0.1:5000");
+	// Listen for client requests on port - 50000 was set by main
+	let client_addr= (IpAddr::V6(Ipv6Addr::LOCALHOST), 50000);
+	let mut client_listener = tcp::listen(&client_addr, Json::default).await.expect("Client could not be connected");
+	println!("Client service running on {}", client_addr.0);
 
-	// Listen for chunk server registrations on port 5001
-	let chunk_listener = TcpListener::bind("127.0.0.1:8000").await.expect("Could not bind chunk server");
-	println!("Chunk service running on 127.0.0.1:8000");
+	// Listen for chunk server registrations on port 50001 - just use the next one
+	let chunk_server_addr= (IpAddr::V6(Ipv6Addr::LOCALHOST), 50001);
+	let mut chunk_listener = tcp::listen(&chunk_server_addr, Json::default).await.expect("Chunk could not be connected");
+	println!("Chunk service running on {}", chunk_server_addr.0);
 
-	// Spawn the client service server
-	let client_service = tokio::spawn(async move {
-		loop {
-			let (socket, _) = client_listener.accept().await.expect("Failed to accept connection");
-			//let transport = tcp::Transport::from(socket);
+	// Start handling incoming connections
+	let gfs_master_clone = gfs_master.clone();
 
-		}
+	// Spawn a task to handle client requests
+	tokio::spawn(async move {
+		use gfs_lite::ChunkMaster;
+		client_listener
+			.incoming()
+			.for_each_concurrent(None, |stream| async {
+				match stream {
+					Ok(transport) => {
+						let server = gfs_master_clone.clone();
+						server::BaseChannel::with_defaults(transport)
+							.execute(server.serve());
+					}
+					Err(e) => eprintln!("Error accepting client connection: {}", e),
+				}
+			})
+			.await;
 	});
 
-	// Spawn the chunk service server
-	let chunk_service = tokio::spawn(async move {
-		loop {
-			let (socket, _) = chunk_listener.accept().await.expect("Failed to accept connection");
-			//let transport = tcp::Transport::from(socket);
-
-		}
+	// Spawn a task to handle chunk server requests
+	tokio::spawn(async move {
+		use gfs_lite::Master;
+		chunk_listener
+			.incoming()
+			.for_each_concurrent(None, |stream| async {
+				match stream {
+					Ok(transport) => {
+						let server = gfs_master.clone();
+						server::BaseChannel::with_defaults(transport)
+							.execute(server.serve());
+					}
+					Err(e) => eprintln!("Error accepting chunk server connection: {}", e),
+				}
+			})
+			.await;
 	});
+
 
 	// Wait for shutdown signal
 	tokio::signal::ctrl_c().await?;
-	println!("Shutting down servers.");
+	println!("Shutting down servers. Dobby has tried everything. I hope dobby was useful");
 
-	// Await both services?
-	// let _ = tokio::join!(client_service, chunk_service);
+
 	Ok(())
 }
 

@@ -8,7 +8,7 @@ use tarpc::serde_transport::tcp::connect;
 use tarpc::{client, server::{self}};
 use tokio::time::{self, Duration};
 use gfs_lite::{chunk::ChunkServer, Chunk, ChunkMasterClient};
-
+use futures::StreamExt;
 
 
 /// The `main` function sets up the `ChunkServer`, connects it to the
@@ -31,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let chunk_master_client = ChunkMasterClient::new(client::Config::default(), transport).spawn();
 	let listener = tarpc::serde_transport::tcp::listen((Ipv6Addr::LOCALHOST, 0), Json::default).await.expect("Could not listen on port");
 	let my_addr = listener.local_addr();
+	println!("Registering using address: {}", my_addr);
 	let my_id = chunk_master_client
 		.register(context::current(), my_addr)
 		.await
@@ -42,11 +43,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// initialize the chunk server
 	let chunk_server = ChunkServer::new(chunk_master_client.clone(), my_id);
+	// For communication loop with master
+	let chunk_server_clone = chunk_server.clone();
+	let chunk_master_client_clone = chunk_master_client.clone();
 
 	// listen for RPC traffic from clients
 	tokio::spawn(async move {
 		listener
-			.incoming()
 			.for_each_concurrent(None, |stream| async {
 				match stream {
 					Ok(transport) => {
@@ -57,29 +60,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			})
 			.await;
 	});
-	// Communication loop with master
-	let chunk_server_clone = chunk_server.clone();
-	let chunk_master_client_clone = chunk_master_client.clone();
 
-	tokio::spawn(async move {
-		let mut interval = time::interval(Duration::from_secs(10));
-		loop {
-			interval.tick().await;
-
-			// Send updates to the master
-			let inner = chunk_server_clone.0.read().unwrap();
-			for url in inner.chunks.keys() {
-				if let Err(e) = chunk_master_client_clone
-					.insert(context::current(), inner.my_id, url.clone())
-					.await
-				{
-					eprintln!("Failed to update master for chunk {}: {}", url, e);
-				} else {
-					println!("Updated master with chunk {}", url);
-				}
+	let mut interval = time::interval(Duration::from_secs(10));
+	loop {
+		interval.tick().await;
+		// Send updates to the master
+		let inner = chunk_server_clone.0.read().unwrap();
+		for url in inner.chunks.keys() {
+			if let Err(e) = chunk_master_client_clone
+				.insert(context::current(), inner.my_id, url.clone())
+				.await
+			{
+				eprintln!("Failed to update master for chunk {}: {}", url, e);
+			} else {
+				println!("Updated master with chunk {}", url);
 			}
 		}
-	});
+	}
 
 	// Wait for shutdown signal
 	tokio::signal::ctrl_c().await?;

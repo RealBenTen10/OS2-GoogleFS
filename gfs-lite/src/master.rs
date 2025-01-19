@@ -8,10 +8,8 @@ use std::{
 	net::SocketAddr,
 	sync::{Arc, RwLock}
 };
-
 use tarpc::context::Context;
 use std::collections::HashMap;
-
 use crate::{ChunkMaster, Master};
 
 /// `GfsMaster` is a wrapper around `Inner` that provides thread-safe access.
@@ -28,9 +26,10 @@ struct Inner {
 }
 
 /// Implementation of the `Master` trait for `GfsMaster`.
+
 impl Master for GfsMaster {
 	async fn lookup(self, _: Context, url: String) -> SocketAddr {
-		// Get the socketaddres of the chunk server which has the data (url)
+		// Get the socket address of the chunk server which has the data (url)
 		let inner = self.0.read().unwrap();
 		inner.url_to_chunk.get(&url).cloned().unwrap_or_else(|| {
 			panic!("URL not found: {}", url)
@@ -41,6 +40,7 @@ impl Master for GfsMaster {
 /// Implementation of the `ChunkMaster` trait for `GfsMaster`.
 impl ChunkMaster for GfsMaster {
 	async fn register(self, _: Context, socket_addr: SocketAddr) -> u64 {
+		println!("Chunk Server Registering");
 		// register new chunk server in inner array/vector
 		let mut inner = self.0.write().unwrap();
 		inner.chunk_servers.push(socket_addr);

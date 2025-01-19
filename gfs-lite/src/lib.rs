@@ -12,7 +12,6 @@
 //! - `ChunkMaster`: Service interface for chunk server management operations.
 
 use std::net::SocketAddr;
-
 pub mod master;
 pub mod chunk;
 
